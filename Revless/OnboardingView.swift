@@ -1,12 +1,8 @@
 // OnboardingView.swift
 // Revless
 //
-// First-launch swipeable carousel. Presented as a .fullScreenCover from
-// ContentView until the user taps "Start Exploring" on the final slide.
-//
-// Design: same #0A0E17 → #1A1A2E gradient + Aero-Glass system as the rest
-// of the app. Each slide is a self-contained SlideView built from a shared
-// OnboardingSlide model.
+// Token-economy onboarding: paged TabView on the app gradient. Final slide
+// uses a full-width glassmorphic "Start Exploring" CTA.
 
 import SwiftUI
 
@@ -17,33 +13,30 @@ private struct OnboardingSlide: Identifiable {
     let icon: String
     let iconGradient: LinearGradient
     let iconShadowColor: Color
-    let title: String
-    let body: String
+    let message: String
 }
 
 // MARK: - Main view
 
 struct OnboardingView: View {
 
-    /// Bound to @AppStorage("hasSeenOnboarding") in ContentView.
     var onFinish: () -> Void
 
     @State private var currentPage: Int = 0
-
-    // MARK: Palette
 
     private let bg = LinearGradient(
         colors: [Color(hex: "#0A0E17"), Color(hex: "#1A1A2E")],
         startPoint: .top, endPoint: .bottom
     )
+
+    private let orangeGradient = LinearGradient(
+        colors: [Color(red: 1.0, green: 0.55, blue: 0.12),
+                 Color(red: 1.0, green: 0.35, blue: 0.08)],
+        startPoint: .topLeading, endPoint: .bottomTrailing
+    )
     private let indigoGradient = LinearGradient(
         colors: [Color(red: 0.38, green: 0.44, blue: 0.98),
                  Color(red: 0.55, green: 0.28, blue: 0.92)],
-        startPoint: .topLeading, endPoint: .bottomTrailing
-    )
-    private let amberGradient = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.80, blue: 0.20),
-                 Color(red: 1.0, green: 0.50, blue: 0.10)],
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
     private let skyGradient = LinearGradient(
@@ -52,56 +45,47 @@ struct OnboardingView: View {
         startPoint: .topLeading, endPoint: .bottomTrailing
     )
 
-    // MARK: Slides
-
     private var slides: [OnboardingSlide] {[
         OnboardingSlide(
             id: 0,
-            icon: "airplane.departure",
+            icon: "airplane.circle.fill",
             iconGradient: skyGradient,
             iconShadowColor: Color(red: 0.25, green: 0.72, blue: 0.98),
-            title: "Welcome to Revless",
-            body: "The modern engine for non-rev travel.\nFind optimal ZED routes without the guesswork."
+            message: "Welcome to Revless. The modern engine for crew travel."
         ),
         OnboardingSlide(
             id: 1,
             icon: "bolt.shield.fill",
             iconGradient: indigoGradient,
             iconShadowColor: Color(red: 0.38, green: 0.44, blue: 0.98),
-            title: "Smart Filtering",
-            body: "We cross-reference live global flight data against your airline's specific ZED agreements.\nNo more dead ends."
+            message: "Smart Filtering. We scan live flight data against your airline's specific ZED agreements."
         ),
         OnboardingSlide(
             id: 2,
-            icon: "star.circle.fill",
-            iconGradient: amberGradient,
+            icon: "star.fill",
+            iconGradient: orangeGradient,
             iconShadowColor: Color.orange,
-            title: "Community Driven",
-            body: "Searches cost 1 credit. Help the community by verifying if a route is still accurate\nto earn +5 credits."
+            message: "Community Driven. Searches cost 1 credit. Verify stale route agreements to earn +5 credits."
         ),
     ]}
 
     private var isLastSlide: Bool { currentPage == slides.count - 1 }
-
-    // MARK: Body
 
     var body: some View {
         ZStack {
             bg.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // ── Slide carousel ──────────────────────────────────────
                 TabView(selection: $currentPage) {
                     ForEach(slides) { slide in
                         SlideView(slide: slide)
                             .tag(slide.id)
                     }
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                .tabViewStyle(.page)
                 .frame(maxHeight: .infinity)
                 .animation(.easeInOut(duration: 0.35), value: currentPage)
 
-                // ── Dot indicator + CTA ─────────────────────────────────
                 bottomControls
                     .padding(.horizontal, 28)
                     .padding(.bottom, 52)
@@ -114,8 +98,6 @@ struct OnboardingView: View {
 
     private var bottomControls: some View {
         VStack(spacing: 28) {
-            dotIndicator
-
             if isLastSlide {
                 startButton
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
@@ -126,23 +108,6 @@ struct OnboardingView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isLastSlide)
     }
-
-    // MARK: Dot indicator
-
-    private var dotIndicator: some View {
-        HStack(spacing: 8) {
-            ForEach(slides.indices, id: \.self) { i in
-                Capsule()
-                    .fill(i == currentPage
-                          ? Color(red: 0.55, green: 0.60, blue: 0.98)
-                          : Color.white.opacity(0.25))
-                    .frame(width: i == currentPage ? 24 : 8, height: 8)
-                    .animation(.spring(response: 0.35, dampingFraction: 0.7), value: currentPage)
-            }
-        }
-    }
-
-    // MARK: Next button (slides 0–1)
 
     private var nextButton: some View {
         Button {
@@ -157,76 +122,55 @@ struct OnboardingView: View {
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-                    .background(
-                        .ultraThinMaterial,
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-                    }
-            }
+            .background { glassButtonBackground() }
         }
         .buttonStyle(.plain)
     }
 
-    // MARK: Start Exploring button (slide 2)
-
+    /// Full-width glassmorphic CTA on the final slide only.
     private var startButton: some View {
         Button(action: onFinish) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(red: 0.38, green: 0.44, blue: 0.98),
-                                     Color(red: 0.55, green: 0.28, blue: 0.92)],
-                            startPoint: .leading, endPoint: .trailing
-                        )
-                    )
-                    .shadow(
-                        color: Color(red: 0.38, green: 0.44, blue: 0.98).opacity(0.55),
-                        radius: 24, y: 10
-                    )
-
-                HStack(spacing: 10) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 17, weight: .semibold))
-                    Text("Start Exploring")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                }
+            Text("Start Exploring")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
-            }
-            .frame(height: 60)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background { glassButtonBackground() }
         }
         .buttonStyle(.plain)
+    }
+
+    private func glassButtonBackground() -> some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(Color.white.opacity(0.08))
+            .background(
+                .ultraThinMaterial,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+            }
     }
 }
 
-// MARK: - Individual slide
+// MARK: - Slide
 
 private struct SlideView: View {
 
     let slide: OnboardingSlide
 
-    private let subtleText = Color.white.opacity(0.55)
-
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
 
-            // Icon badge
             ZStack {
-                // Outer glow ring
                 Circle()
                     .fill(slide.iconGradient)
                     .opacity(0.15)
                     .frame(width: 140, height: 140)
                     .blur(radius: 24)
 
-                // Glass card
                 RoundedRectangle(cornerRadius: 32, style: .continuous)
                     .fill(Color.white.opacity(0.08))
                     .background(
@@ -246,22 +190,12 @@ private struct SlideView: View {
             }
             .padding(.bottom, 44)
 
-            // Text block
-            VStack(spacing: 16) {
-                Text(slide.title)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-
-                Text(slide.body)
-                    .font(.system(size: 17, weight: .regular))
-                    .foregroundStyle(subtleText)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(4)
-                    .padding(.horizontal, 8)
-            }
-            .padding(.horizontal, 28)
+            Text(slide.message)
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(Color.white.opacity(0.88))
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+                .padding(.horizontal, 28)
 
             Spacer()
             Spacer()
@@ -285,8 +219,6 @@ private extension Color {
         self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: 1)
     }
 }
-
-// MARK: - Preview
 
 #Preview {
     OnboardingView(onFinish: {})

@@ -8,6 +8,9 @@ struct ItineraryCard: View {
     let itinerary: Itinerary
     var onVerifyTap: (StaleRule) -> Void = { _ in }
 
+    @State private var zedHoldActive = false
+    @State private var companionHoldActive = false
+
     // MARK: - Palette
 
     private let accentColor  = Color(red: 0.55, green: 0.60, blue: 0.98)
@@ -194,15 +197,42 @@ struct ItineraryCard: View {
             case .high:   return (.green,   Color.green.opacity(0.15))
             }
         }()
-        return HStack(spacing: 4) {
-            Image(systemName: "ticket.fill")
-            Text("ZED \(itinerary.totalZedTier.displayName)")
+        return VStack(alignment: .leading, spacing: 0) {
+            if zedHoldActive {
+                holdTipBubble(text: zedTierHoldBrief)
+                    .padding(.bottom, 10)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            HStack(spacing: 4) {
+                Image(systemName: "ticket.fill")
+                Text("ZED \(itinerary.totalZedTier.displayName)")
+            }
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(fg)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(bg, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .font(.caption2.weight(.bold))
-        .foregroundStyle(fg)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(bg, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .animation(.easeOut(duration: 0.18), value: zedHoldActive)
+        .onLongPressGesture(
+            minimumDuration: 0.35,
+            maximumDistance: 44,
+            pressing: { pressing in zedHoldActive = pressing },
+            perform: {}
+        )
+        .accessibilityHint("Hold for a short explanation of this ZED tier.")
+    }
+
+    /// Short copy shown while the user holds the ZED badge.
+    private var zedTierHoldBrief: String {
+        switch itinerary.totalZedTier {
+        case .low:
+            return "ZED Low is the lowest standby bucket for this routing. Fares load in the cheapest non-rev tier—often meaning more competition for open seats."
+        case .medium:
+            return "ZED Medium is a mid-level standby tier on these carriers. You pay a moderate ZED rate relative to high-tier priority on the same flights."
+        case .high:
+            return "ZED High is the strongest tier reflected for this itinerary. Standby lists and charges typically favor you versus lower ZED buckets when space is available."
+        }
     }
 
     @ViewBuilder
@@ -221,16 +251,58 @@ struct ItineraryCard: View {
             }
             .buttonStyle(.plain)
         } else {
-            HStack(spacing: 4) {
-                Image(systemName: "checkmark.seal.fill")
-                Text("Companion OK")
+            VStack(alignment: .trailing, spacing: 0) {
+                if companionHoldActive {
+                    holdTipBubble(text: Self.companionHoldBrief)
+                        .padding(.bottom, 10)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.seal.fill")
+                    Text("Companion OK")
+                }
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.green)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .font(.caption2.weight(.bold))
-            .foregroundStyle(.green)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.green.opacity(0.15), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .animation(.easeOut(duration: 0.18), value: companionHoldActive)
+            .onLongPressGesture(
+                minimumDuration: 0.35,
+                maximumDistance: 44,
+                pressing: { pressing in companionHoldActive = pressing },
+                perform: {}
+            )
+            .accessibilityHint("Hold to see which travelers are usually allowed on ZED for verified routes.")
         }
+    }
+
+    /// Who may travel when agreement rules are confident (no verify flag).
+    private static let companionHoldBrief =
+        "Route rules look current on file. ZED travel typically covers you (employee), your spouse or registered partner, and eligible dependents as defined by your airline. Some carriers allow one registered companion; others require separate listings—always confirm with crew travel before listing anyone."
+
+    private func holdTipBubble(text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .regular))
+            .foregroundStyle(Color.white.opacity(0.92))
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(12)
+            .frame(maxWidth: 280, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.white.opacity(0.10))
+                    .background(
+                        .ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5)
+                    }
+            }
+            .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
     }
 }
 

@@ -73,10 +73,18 @@ final class SearchViewModel {
     /// `auth` is passed so credits can be decremented optimistically after a
     /// successful search, keeping the Home dashboard number in sync without
     /// waiting for the next /auth/me round-trip.
-    func fetchRoutes(auth: AuthViewModel) async {
-        isLoading             = true
+    func fetchRoutes(auth: AuthViewModel, recentActivity: RecentSearchStore? = nil) async {
         errorMessage          = nil
         showOutOfCreditsAlert = false
+
+        let creditsBefore = auth.currentUser?.searchCredits
+        var didOptimisticDecrement = false
+        if let u = auth.currentUser, u.searchCredits > 0 {
+            auth.currentUser?.searchCredits = u.searchCredits - 1
+            didOptimisticDecrement = true
+        }
+
+        isLoading = true
         defer { isLoading = false }
 
         let dateString = Self.apiDateFormatter.string(from: departureDate)
@@ -96,16 +104,31 @@ final class SearchViewModel {
             totalRaw      = response.totalRaw
             totalFiltered = response.totalFiltered
 
-            // Optimistically mirror the -1 deduction the backend just applied.
-            // The .contentTransition(.numericText()) on the dashboard animates this.
-            if let user = auth.currentUser, user.searchCredits > 0 {
-                auth.currentUser?.searchCredits = user.searchCredits - 1
-            }
+            // Credits were decremented optimistically at search start so Home
+            // reflects the cost immediately; server is source of truth on refresh.
+
+            recentActivity?.recordSuccessfulSearch(
+                origin: origin,
+                destination: destination,
+                departureDate: dateString,
+                travelerType: travelerType,
+                totalFiltered: response.totalFiltered,
+                totalRaw: response.totalRaw
+            )
         } catch NetworkError.paymentRequired {
+            if didOptimisticDecrement, let c = creditsBefore {
+                auth.currentUser?.searchCredits = c
+            }
             showOutOfCreditsAlert = true
         } catch let error as NetworkError {
+            if didOptimisticDecrement, let c = creditsBefore {
+                auth.currentUser?.searchCredits = c
+            }
             errorMessage = error.errorDescription
         } catch {
+            if didOptimisticDecrement, let c = creditsBefore {
+                auth.currentUser?.searchCredits = c
+            }
             errorMessage = "Failed to fetch routes. Please try again."
         }
     }
@@ -115,7 +138,7 @@ final class SearchViewModel {
     /// Called by VerificationModal. Submits the crowdsourced answer, refreshes
     /// routes so badge states update, and pulls fresh user credits from /auth/me
     /// so the dashboard balance reflects the +5 reward immediately.
-    func submitVerification(ruleId: UUID, isAccurate: Bool, auth: AuthViewModel) async {
+    func submitVerification(ruleId: UUID, isAccurate: Bool, auth: AuthViewModel, recentActivity: RecentSearchStore? = nil) async {
         let body = AgreementVerificationRequest(ruleId: ruleId, isAccurate: isAccurate)
         do {
             let _: AgreementVerificationResponse = try await NetworkManager.shared.post(
@@ -125,7 +148,7 @@ final class SearchViewModel {
         } catch {
             // Non-critical — still refresh routes and credits
         }
-        await fetchRoutes(auth: auth)
+        await fetchRoutes(auth: auth, recentActivity: recentActivity)
         await auth.refreshCurrentUser()
     }
 }

@@ -350,4 +350,5 @@ private extension Color {
 #Preview {
     SearchFormView()
         .environment(AuthViewModel())
+        .environment(RecentSearchStore())
 }

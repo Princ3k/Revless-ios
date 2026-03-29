@@ -15,6 +15,10 @@ struct HomeDashboardView: View {
     @Binding var selectedTab: Int
 
     @Environment(AuthViewModel.self) private var auth
+    @Environment(RecentSearchStore.self) private var recentActivity
+
+    @State private var serverSearchHistory: [SearchHistoryItem] = []
+    @State private var didAttemptServerHistory = false
 
     // MARK: - Palette (matches RouteResultsView / SearchFormView exactly)
 
@@ -64,7 +68,7 @@ struct HomeDashboardView: View {
                     headerSection
                     creditsCard
                     quickActionsSection
-                    recentActivityPlaceholder
+                    recentActivitySection
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
@@ -78,6 +82,7 @@ struct HomeDashboardView: View {
         // Sync credits from the server every time the user lands on this tab.
         // Covers: post-search deduction, post-verification reward, and cold launches.
         .task { await auth.refreshCurrentUser() }
+        .onAppear { Task { await loadServerSearchHistory() } }
     }
 
     // MARK: - Header
@@ -273,28 +278,142 @@ struct HomeDashboardView: View {
         }
     }
 
-    // MARK: - Recent activity placeholder
+    // MARK: - Recent activity
 
-    private var recentActivityPlaceholder: some View {
+    private var recentActivitySection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Recent Activity")
 
-            HStack(spacing: 14) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 20, weight: .light))
-                    .foregroundStyle(accentColor.opacity(0.5))
-                    .frame(width: 36)
+            if !serverSearchHistory.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(serverSearchHistory) { item in
+                        serverSearchHistoryRow(item)
+                    }
+                }
+            } else if !recentActivity.items.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(recentActivity.items) { item in
+                        recentActivityRow(item)
+                    }
+                }
+            } else if didAttemptServerHistory {
+                HStack(spacing: 14) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 20, weight: .light))
+                        .foregroundStyle(accentColor.opacity(0.5))
+                        .frame(width: 36)
 
-                Text("Your recent searches will appear here.")
-                    .font(.system(size: 13))
+                    Text("Your recent searches will appear here after you find routes.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(subtleText)
+
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+                .background { glass() }
+            } else {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(accentColor)
+                    Spacer()
+                }
+                .padding(.vertical, 24)
+                .background { glass() }
+            }
+        }
+    }
+
+    @MainActor
+    private func loadServerSearchHistory() async {
+        defer { didAttemptServerHistory = true }
+        do {
+            serverSearchHistory = try await NetworkManager.shared.getSearchHistory(limit: 20)
+        } catch {
+            serverSearchHistory = []
+        }
+    }
+
+    private static let searchedRelativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
+    private func serverSearchHistoryRow(_ item: SearchHistoryItem) -> some View {
+        let when = item.searchedAtDate ?? Date.distantPast
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(accentColor.opacity(0.18))
+                    .frame(width: 36, height: 36)
+                Image(systemName: "airplane")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(accentColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.routeLabel)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text("\(item.departureDisplay) · \(item.travelerType.displayName)")
+                    .font(.system(size: 12))
                     .foregroundStyle(subtleText)
 
-                Spacer()
+                Text(item.resultSummary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(subtleText.opacity(0.9))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 16)
-            .background { glass() }
+
+            Spacer(minLength: 8)
+
+            Text(Self.searchedRelativeFormatter.localizedString(for: when, relativeTo: Date()))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(subtleText.opacity(0.75))
+                .multilineTextAlignment(.trailing)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background { glass() }
+    }
+
+    private func recentActivityRow(_ item: RecentSearchActivity) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(accentColor.opacity(0.18))
+                    .frame(width: 36, height: 36)
+                Image(systemName: "airplane")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(accentColor)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.routeLabel)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text("\(item.departureDisplay) · \(item.travelerDisplay)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(subtleText)
+
+                Text(item.resultSummary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(subtleText.opacity(0.9))
+            }
+
+            Spacer(minLength: 8)
+
+            Text(Self.searchedRelativeFormatter.localizedString(for: item.searchedAt, relativeTo: Date()))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(subtleText.opacity(0.75))
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background { glass() }
     }
 
     // MARK: - Helpers
@@ -343,4 +462,5 @@ private extension Color {
 #Preview {
     HomeDashboardView(selectedTab: .constant(0))
         .environment(AuthViewModel())
+        .environment(RecentSearchStore())
 }

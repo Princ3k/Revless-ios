@@ -92,6 +92,22 @@ final class NetworkManager {
         try await get("auth/me")
     }
 
+    /// GET /search/history — server-side recent searches for Home.
+    func getSearchHistory(limit: Int = 20) async throws -> [SearchHistoryItem] {
+        try await get(
+            "search/history",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
+    /// GET /auth/me/verifications — crowd verifications the user submitted.
+    func getMyVerifications(limit: Int = 30) async throws -> [VerificationHistoryItem] {
+        try await get(
+            "auth/me/verifications",
+            queryItems: [URLQueryItem(name: "limit", value: "\(limit)")]
+        )
+    }
+
     // MARK: - Generic authenticated requests
 
     /// GET request. Automatically attaches the stored Bearer token.

@@ -9,7 +9,10 @@ import SwiftUI
 struct ProfileView: View {
 
     @Environment(AuthViewModel.self) private var auth
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var showSignOutAlert = false
+    @State private var verifications: [VerificationHistoryItem] = []
+    @State private var verificationsLoaded = false
 
     // MARK: - Palette
 
@@ -56,6 +59,7 @@ struct ProfileView: View {
                     avatarSection
                     statsRow
                     accountCard
+                    verificationImpactSection
                     appCard
                     signOutButton
                 }
@@ -69,10 +73,24 @@ struct ProfileView: View {
         }
         .preferredColorScheme(.dark)
         .alert("Sign Out", isPresented: $showSignOutAlert) {
-            Button("Sign Out", role: .destructive) { auth.logout() }
+            Button("Sign Out", role: .destructive) {
+                hasSeenOnboarding = false
+                auth.logout()
+            }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You'll need to sign back in to access your routes.")
+        }
+        .onAppear { Task { await loadVerifications() } }
+    }
+
+    @MainActor
+    private func loadVerifications() async {
+        defer { verificationsLoaded = true }
+        do {
+            verifications = try await NetworkManager.shared.getMyVerifications(limit: 40)
+        } catch {
+            verifications = []
         }
     }
 
@@ -190,6 +208,74 @@ struct ProfileView: View {
                 )
             }
             .background { glass() }
+        }
+    }
+
+    // MARK: - Verification impact
+
+    private static let verificationRelativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
+    private var verificationImpactSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Community impact")
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if !verifications.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(verifications) { item in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: item.isAccurate ? "hand.thumbsup.fill" : "hand.thumbsdown.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(item.isAccurate ? Color.green : Color.orange.opacity(0.9))
+                                .frame(width: 28)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(item.carrierIata) · \(item.carrierName)")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.85)
+
+                                Text(item.isAccurate ? "Confirmed rule is accurate" : "Flagged rule as outdated")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(subtleText)
+
+                                if let d = item.createdAtDate {
+                                    Text(Self.verificationRelativeFormatter.localizedString(for: d, relativeTo: Date()))
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundStyle(subtleText.opacity(0.8))
+                                }
+                            }
+
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                        .background { glass() }
+                    }
+                }
+            } else if verificationsLoaded {
+                Text("When you verify route agreements from search results, your contributions appear here.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(subtleText)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background { glass() }
+            } else {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .tint(accentColor)
+                    Spacer()
+                }
+                .padding(.vertical, 20)
+                .background { glass() }
+            }
         }
     }
 

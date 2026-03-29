@@ -14,6 +14,8 @@ struct MainTabView: View {
 
     @State private var selectedTab: Int = 0
 
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+
     // Accent colour duplicated here so the tint modifier has access
     private let accentColor = Color(red: 0.55, green: 0.60, blue: 0.98)
 
@@ -67,6 +69,15 @@ struct MainTabView: View {
         }
         .tint(accentColor)
         .preferredColorScheme(.dark)
+        .fullScreenCover(isPresented: Binding(
+            get: { !hasSeenOnboarding },
+            set: { _ in }
+        )) {
+            OnboardingView {
+                hasSeenOnboarding = true
+            }
+            .interactiveDismissDisabled()
+        }
     }
 }
 
@@ -92,4 +103,5 @@ private extension Color {
 #Preview {
     MainTabView()
         .environment(AuthViewModel())
+        .environment(RecentSearchStore())
 }

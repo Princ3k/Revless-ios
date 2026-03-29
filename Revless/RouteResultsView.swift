@@ -10,6 +10,7 @@ struct RouteResultsView: View {
 
     @Bindable var viewModel: SearchViewModel
     @Environment(AuthViewModel.self) private var auth
+    @Environment(RecentSearchStore.self) private var recentActivity
 
     // MARK: - Palette
     //
@@ -47,7 +48,7 @@ struct RouteResultsView: View {
         .toolbarColorScheme(.dark, for: .navigationBar)
         .preferredColorScheme(.dark)
         // Fetch on first appearance
-        .task { await viewModel.fetchRoutes(auth: auth) }
+        .task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
         // VerificationModal sheet — driven by viewModel.selectedStaleRule
         .sheet(item: $viewModel.selectedStaleRule) { rule in
             VerificationModal(
@@ -55,7 +56,12 @@ struct RouteResultsView: View {
                 travelerType: viewModel.travelerType
             ) { isAccurate in
                 Task {
-                    await viewModel.submitVerification(ruleId: rule.ruleId, isAccurate: isAccurate, auth: auth)
+                    await viewModel.submitVerification(
+                        ruleId: rule.ruleId,
+                        isAccurate: isAccurate,
+                        auth: auth,
+                        recentActivity: recentActivity
+                    )
                 }
             }
         }
@@ -104,7 +110,7 @@ struct RouteResultsView: View {
             Spacer()
             // Refresh button
             Button {
-                Task { await viewModel.fetchRoutes(auth: auth) }
+                Task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 14, weight: .medium))
@@ -149,7 +155,7 @@ struct RouteResultsView: View {
             }
 
             Button {
-                Task { await viewModel.fetchRoutes(auth: auth) }
+                Task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
             } label: {
                 Text("Try Again")
                     .font(.system(size: 15, weight: .semibold))
@@ -189,7 +195,7 @@ struct RouteResultsView: View {
             }
 
             Button {
-                Task { await viewModel.fetchRoutes(auth: auth) }
+                Task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
             } label: {
                 Text("Retry")
                     .font(.system(size: 15, weight: .semibold))

@@ -144,3 +144,67 @@ struct AgreementVerificationResponse: Codable {
     let lastVerified: String
     let userSearchCredits: Int
 }
+
+// MARK: - Search history (GET /search/history)
+
+struct SearchHistoryItem: Codable, Identifiable {
+    let id: UUID
+    let origin: String
+    let destination: String
+    let travelDate: String
+    let travelerType: TravelerType
+    let totalRaw: Int
+    let totalFiltered: Int
+    /// ISO-8601 from API
+    let createdAt: String
+
+    var routeLabel: String { "\(origin) → \(destination)" }
+
+    var resultSummary: String {
+        guard totalRaw > 0 else { return "No routes returned" }
+        let dropped = totalRaw - totalFiltered
+        if dropped == 0 {
+            return "\(totalFiltered) route\(totalFiltered == 1 ? "" : "s") eligible"
+        }
+        return "\(totalFiltered) of \(totalRaw) eligible · \(dropped) filtered"
+    }
+
+    var departureDisplay: String {
+        let parser = DateFormatter()
+        parser.dateFormat = "yyyy-MM-dd"
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.timeZone = TimeZone(secondsFromGMT: 0)
+        guard let date = parser.date(from: travelDate) else { return travelDate }
+        let out = DateFormatter()
+        out.dateFormat = "MMM d"
+        out.locale = Locale(identifier: "en_US_POSIX")
+        return out.string(from: date)
+    }
+
+    var searchedAtDate: Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: createdAt) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: createdAt)
+    }
+}
+
+// MARK: - Verification history (GET /auth/me/verifications)
+
+struct VerificationHistoryItem: Codable, Identifiable {
+    let id: UUID
+    let ruleId: UUID
+    let carrierIata: String
+    let carrierName: String
+    let isAccurate: Bool
+    let createdAt: String
+
+    var createdAtDate: Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: createdAt) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: createdAt)
+    }
+}

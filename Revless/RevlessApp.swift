@@ -14,11 +14,13 @@ struct RevlessApp: App {
     /// @State on App owns the instance; .environment() makes it available
     /// to every view in the hierarchy via @Environment(AuthViewModel.self).
     @State private var auth = AuthViewModel()
+    @State private var recentSearchStore = RecentSearchStore()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(auth)
+                .environment(recentSearchStore)
         }
     }
 }
