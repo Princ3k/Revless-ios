@@ -281,7 +281,7 @@ struct AgreementMatrixView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
 
-                Text("Enter the partner airline IATA code this document covers (e.g. TK).")
+                Text("Enter the partner airline IATA code this document covers (e.g. PD, TK, QR).")
                     .font(.system(size: 14))
                     .foregroundStyle(subtleText)
                     .multilineTextAlignment(.center)
@@ -315,7 +315,7 @@ struct AgreementMatrixView: View {
                         }
                 }
                 .buttonStyle(.plain)
-                .disabled(isUploading || carrierField.filter(\.isLetter).count != 3)
+                .disabled(isUploading || carrierField.filter(\.isLetter).count < 2)
 
                 Button("Cancel") {
                     showCarrierSheet = false
@@ -390,8 +390,8 @@ struct AgreementMatrixView: View {
     private func runUpload() async {
         guard let pu = pendingUpload else { return }
         let iata = String(carrierField.uppercased().filter(\.isLetter).prefix(3))
-        guard iata.count == 3 else {
-            uploadError = "Enter a 3-letter IATA code."
+        guard iata.count >= 2 else {
+            uploadError = "Enter a 2–3 letter IATA code (e.g. PD, TK, QR)."
             return
         }
         isUploading = true
