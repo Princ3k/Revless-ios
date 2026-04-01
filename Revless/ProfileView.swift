@@ -14,6 +14,7 @@ struct ProfileView: View {
     @State private var showSignOutAlert = false
     @State private var verifications: [VerificationHistoryItem] = []
     @State private var verificationsLoaded = false
+    @State private var legalURL: URL? = nil
 
     private var accentColor: Color { theme.accent }
     private var ctaGradient: LinearGradient { theme.ctaGradient }
@@ -80,6 +81,10 @@ struct ProfileView: View {
             Text("You'll need to sign back in to access your routes.")
         }
         .onAppear { Task { await loadVerifications() } }
+        .sheet(item: $legalURL) { url in
+            SafariSheet(url: url)
+                .ignoresSafeArea()
+        }
     }
 
     @MainActor
@@ -302,20 +307,16 @@ struct ProfileView: View {
                     value: appVersion
                 )
                 rowDivider
-                infoRow(
+                legalRow(
                     icon: "doc.text.fill",
-                    iconColor: subtleText,
                     title: "Terms of Service",
-                    value: "",
-                    showChevron: true
+                    url: URL(string: "https://revless.app/terms")!
                 )
                 rowDivider
-                infoRow(
+                legalRow(
                     icon: "hand.raised.fill",
-                    iconColor: subtleText,
                     title: "Privacy Policy",
-                    value: "",
-                    showChevron: true
+                    url: URL(string: "https://revless.app/privacy")!
                 )
             }
             .background { glass() }
@@ -395,6 +396,34 @@ struct ProfileView: View {
         .padding(.vertical, 14)
     }
 
+    private func legalRow(icon: String, title: String, url: URL) -> some View {
+        Button {
+            HapticEngine.select()
+            legalURL = url
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(subtleText.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(subtleText)
+                }
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(subtleText.opacity(0.6))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var rowDivider: some View {
         Rectangle()
             .fill(Color.white.opacity(0.07))
@@ -426,6 +455,27 @@ struct ProfileView: View {
 }
 
 // MARK: - Preview
+
+// MARK: - URL + Identifiable (for sheet(item:))
+
+extension URL: @retroactive Identifiable {
+    public var id: String { absoluteString }
+}
+
+// MARK: - In-app Safari sheet
+
+import SafariServices
+
+private struct SafariSheet: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let vc = SFSafariViewController(url: url)
+        vc.preferredBarTintColor = UIColor(red: 0.04, green: 0.06, blue: 0.14, alpha: 1)
+        vc.preferredControlTintColor = UIColor(red: 0.55, green: 0.60, blue: 0.98, alpha: 1)
+        return vc
+    }
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
 
 #Preview {
     ProfileView()
