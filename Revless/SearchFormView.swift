@@ -11,21 +11,10 @@ struct SearchFormView: View {
 
     @State private var viewModel = SearchViewModel()
     @State private var navigateToResults = false
+    @Environment(ThemeManager.self) private var theme
 
-    // MARK: - Palette
-
-    private let bg = LinearGradient(
-        colors: [Color(hex: "#0A0E17"), Color(hex: "#1A1A2E")],
-        startPoint: .top, endPoint: .bottom
-    )
-    private let ctaGradient = LinearGradient(
-        colors: [
-            Color(red: 0.38, green: 0.44, blue: 0.98),   // electric indigo
-            Color(red: 0.55, green: 0.28, blue: 0.92),   // deep violet
-        ],
-        startPoint: .leading, endPoint: .trailing
-    )
-    private let accentColor = Color(red: 0.55, green: 0.60, blue: 0.98)
+    private var accentColor: Color { theme.accent }
+    private var ctaGradient: LinearGradient { theme.ctaGradient }
     private let subtleText  = Color.white.opacity(0.45)
 
     // MARK: - Body
@@ -38,7 +27,7 @@ struct SearchFormView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                bg.ignoresSafeArea()
+                AtmosphericBackground()
 
                 VStack(spacing: 0) {
                     ScrollView {
@@ -68,6 +57,9 @@ struct SearchFormView: View {
                 Button("Got It", role: .cancel) {}
             } message: {
                 Text("You've used all your search credits.\n\nVerify a route on any results card to earn +5 credits and keep searching.")
+            }
+            .onChange(of: viewModel.showOutOfCreditsAlert) { _, showing in
+                if showing { HapticEngine.creditsDepleted() }
             }
         }
     }
@@ -200,9 +192,12 @@ struct SearchFormView: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionLabel("Traveler Type")
 
-            HStack(spacing: 8) {
-                ForEach(TravelerType.allCases) { type in
-                    travelerPill(type)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(TravelerType.allCases) { type in
+                        travelerPill(type)
+                            .frame(minWidth: 76)
+                    }
                 }
             }
         }
@@ -257,6 +252,7 @@ struct SearchFormView: View {
         case .employee:  return "briefcase.fill"
         case .spouse:    return "heart.fill"
         case .companion: return "person.2.fill"
+        case .parent:    return "figure.walk"
         }
     }
 
@@ -278,7 +274,10 @@ struct SearchFormView: View {
 
     private var heroButton: some View {
         let enabled = viewModel.origin.count == 3 && viewModel.destination.count == 3
-        return Button { navigateToResults = true } label: {
+        return Button {
+            HapticEngine.success()
+            navigateToResults = true
+        } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(ctaGradient)
@@ -328,27 +327,11 @@ struct SearchFormView: View {
     }
 }
 
-// MARK: - Color(hex:) convenience initialiser
-
-private extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&value)
-        let r, g, b: UInt64
-        switch hex.count {
-        case 3:  (r, g, b) = ((value >> 8) * 17, (value >> 4 & 0xF) * 17, (value & 0xF) * 17)
-        case 6:  (r, g, b) = (value >> 16, value >> 8 & 0xFF, value & 0xFF)
-        default: (r, g, b) = (0, 0, 0)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: 1)
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
     SearchFormView()
         .environment(AuthViewModel())
         .environment(RecentSearchStore())
+        .environment(ThemeManager())
 }

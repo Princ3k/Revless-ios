@@ -13,11 +13,11 @@ import SwiftUI
 struct MainTabView: View {
 
     @State private var selectedTab: Int = 0
+    @Environment(ThemeManager.self) private var theme
 
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
-    // Accent colour duplicated here so the tint modifier has access
-    private let accentColor = Color(red: 0.55, green: 0.60, blue: 0.98)
+    private var accentColor: Color { theme.accent }
 
     // MARK: - Tab bar appearance (UIKit)
 
@@ -33,14 +33,18 @@ struct MainTabView: View {
 
         let item = UITabBarItemAppearance()
         let unselected = UIColor(white: 1.0, alpha: 0.38)
-        let selected   = UIColor(red: 0.55, green: 0.60, blue: 0.98, alpha: 1.0)
 
-        item.normal.iconColor   = unselected
-        item.selected.iconColor = selected
-        item.normal.titleTextAttributes   = [.foregroundColor: unselected,
-                                             .font: UIFont.systemFont(ofSize: 10, weight: .medium)]
-        item.selected.titleTextAttributes = [.foregroundColor: selected,
-                                             .font: UIFont.systemFont(ofSize: 10, weight: .semibold)]
+        // Only style the unselected state here; the selected colour is
+        // driven by SwiftUI's .tint(accentColor) so ThemeManager changes
+        // (Porter dark-blue vs. generic indigo) propagate automatically.
+        item.normal.iconColor = unselected
+        item.normal.titleTextAttributes = [
+            .foregroundColor: unselected,
+            .font: UIFont.systemFont(ofSize: 10, weight: .medium)
+        ]
+        item.selected.titleTextAttributes = [
+            .font: UIFont.systemFont(ofSize: 10, weight: .semibold)
+        ]
 
         appearance.stackedLayoutAppearance      = item
         appearance.inlineLayoutAppearance       = item
@@ -63,9 +67,13 @@ struct MainTabView: View {
                 .tabItem { Label("Search",  systemImage: "magnifyingglass") }
                 .tag(1)
 
+            AgreementMatrixView()
+                .tabItem { Label("Agreements", systemImage: "doc.text.magnifyingglass") }
+                .tag(2)
+
             ProfileView()
                 .tabItem { Label("Profile", systemImage: "person.crop.circle") }
-                .tag(2)
+                .tag(3)
         }
         .tint(accentColor)
         .preferredColorScheme(.dark)
@@ -81,27 +89,11 @@ struct MainTabView: View {
     }
 }
 
-// MARK: - Color(hex:) — file-private
-
-private extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&value)
-        let r, g, b: UInt64
-        switch hex.count {
-        case 3:  (r, g, b) = ((value >> 8) * 17, (value >> 4 & 0xF) * 17, (value & 0xF) * 17)
-        case 6:  (r, g, b) = (value >> 16, value >> 8 & 0xFF, value & 0xFF)
-        default: (r, g, b) = (0, 0, 0)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: 1)
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
     MainTabView()
         .environment(AuthViewModel())
         .environment(RecentSearchStore())
+        .environment(ThemeManager())
 }

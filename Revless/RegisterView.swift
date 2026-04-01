@@ -16,6 +16,7 @@ struct RegisterView: View {
     @State private var email:           String = ""
     @State private var password:        String = ""
     @State private var confirmPassword: String = ""
+    @State private var acceptedTermsOfUse: Bool = false
     @FocusState private var focus: Field?
 
     private enum Field { case email, password, confirm }
@@ -151,6 +152,8 @@ struct RegisterView: View {
 
             passwordStrengthBar
 
+            registerTermsAcknowledgment
+
             if let error = auth.errorMessage {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.circle.fill")
@@ -192,9 +195,41 @@ struct RegisterView: View {
                 }
                 .frame(height: 54)
             }
-            .disabled(auth.isLoading || email.isEmpty || password.isEmpty || confirmPassword.isEmpty)
+            .disabled(
+                auth.isLoading || email.isEmpty || password.isEmpty || confirmPassword.isEmpty
+                    || !acceptedTermsOfUse
+            )
+            .opacity(acceptedTermsOfUse ? 1 : 0.45)
             .animation(.easeInOut(duration: 0.2), value: auth.isLoading)
         }
+    }
+
+    private var registerTermsAcknowledgment: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Terms of Use")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(subtleText)
+            Button {
+                acceptedTermsOfUse.toggle()
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: acceptedTermsOfUse ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(acceptedTermsOfUse ? accentBlue : subtleText)
+                    Text(
+                        "I understand Revless is decision support only—not legal advice. "
+                            + "Data is crowdsourced; I will verify policies with my airline before travel."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(Color.white.opacity(0.78))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - Password strength bar

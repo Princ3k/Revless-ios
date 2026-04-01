@@ -16,24 +16,14 @@ struct HomeDashboardView: View {
 
     @Environment(AuthViewModel.self) private var auth
     @Environment(RecentSearchStore.self) private var recentActivity
+    @Environment(ThemeManager.self) private var theme
 
     @State private var serverSearchHistory: [SearchHistoryItem] = []
     @State private var didAttemptServerHistory = false
+    @State private var prevCredits: Int = 0
 
-    // MARK: - Palette (matches RouteResultsView / SearchFormView exactly)
-
-    private let bg = LinearGradient(
-        colors: [Color(hex: "#0A0E17"), Color(hex: "#1A1A2E")],
-        startPoint: .top, endPoint: .bottom
-    )
-    private let ctaGradient = LinearGradient(
-        colors: [
-            Color(red: 0.38, green: 0.44, blue: 0.98),
-            Color(red: 0.55, green: 0.28, blue: 0.92),
-        ],
-        startPoint: .leading, endPoint: .trailing
-    )
-    private let accentColor = Color(red: 0.55, green: 0.60, blue: 0.98)
+    private var accentColor: Color  { theme.accent }
+    private var ctaGradient: LinearGradient { theme.ctaGradient }
     private let subtleText  = Color.white.opacity(0.45)
 
     // MARK: - Derived values
@@ -61,7 +51,7 @@ struct HomeDashboardView: View {
 
     var body: some View {
         ZStack {
-            bg.ignoresSafeArea()
+            AtmosphericBackground()
 
             ScrollView {
                 VStack(spacing: 28) {
@@ -79,9 +69,13 @@ struct HomeDashboardView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .preferredColorScheme(.dark)
-        // Sync credits from the server every time the user lands on this tab.
-        // Covers: post-search deduction, post-verification reward, and cold launches.
-        .task { await auth.refreshCurrentUser() }
+        .task {
+            prevCredits = auth.currentUser?.searchCredits ?? 0
+            await auth.refreshCurrentUser()
+            let newCredits = auth.currentUser?.searchCredits ?? 0
+            if newCredits > prevCredits { HapticEngine.notifySuccess() }
+            prevCredits = newCredits
+        }
         .onAppear { Task { await loadServerSearchHistory() } }
     }
 
@@ -153,6 +147,10 @@ struct HomeDashboardView: View {
                         .font(.system(size: 44, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                         .contentTransition(.numericText())
+                        .overlay(alignment: .topTrailing) {
+                            CreditPopEffect(trigger: credits)
+                                .frame(width: 1, height: 1)
+                        }
                 }
 
                 Spacer()
@@ -203,6 +201,7 @@ struct HomeDashboardView: View {
 
             // Primary: Start a search (switches tab)
             Button {
+                HapticEngine.select()
                 withAnimation(.easeInOut(duration: 0.25)) { selectedTab = 1 }
             } label: {
                 HStack(spacing: 14) {
@@ -239,6 +238,7 @@ struct HomeDashboardView: View {
 
             // Secondary: Verify agreements (placeholder — navigates to Search)
             Button {
+                HapticEngine.select()
                 withAnimation(.easeInOut(duration: 0.25)) { selectedTab = 1 }
             } label: {
                 HStack(spacing: 14) {
@@ -428,32 +428,16 @@ struct HomeDashboardView: View {
 
     private func glass(_ cornerRadius: CGFloat = 20) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color.white.opacity(0.08))
+            .fill(Color.white.opacity(0.05))
             .background(
                 .ultraThinMaterial,
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             )
+            .shadow(color: accentColor.opacity(0.14), radius: 12, y: 3)
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
+                    .strokeBorder(accentColor.opacity(0.28), lineWidth: 0.5)
             }
-    }
-}
-
-// MARK: - Color(hex:) — file-private
-
-private extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&value)
-        let r, g, b: UInt64
-        switch hex.count {
-        case 3:  (r, g, b) = ((value >> 8) * 17, (value >> 4 & 0xF) * 17, (value & 0xF) * 17)
-        case 6:  (r, g, b) = (value >> 16, value >> 8 & 0xFF, value & 0xFF)
-        default: (r, g, b) = (0, 0, 0)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: 1)
     }
 }
 
@@ -463,4 +447,5 @@ private extension Color {
     HomeDashboardView(selectedTab: .constant(0))
         .environment(AuthViewModel())
         .environment(RecentSearchStore())
+        .environment(ThemeManager())
 }

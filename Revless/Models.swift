@@ -28,12 +28,34 @@ struct User: Codable, Identifiable {
     var searchCredits: Int
 }
 
+// MARK: - Tenant request (self-service airline onboarding)
+
+enum TenantRequestStatus: String, Codable {
+    case pending
+    case approved
+    case rejected
+}
+
+struct TenantRequestRead: Codable, Identifiable {
+    let id: UUID
+    let userId: UUID
+    let emailDomain: String
+    let airlineName: String
+    let airlineCode: String
+    let message: String?
+    let status: TenantRequestStatus
+    let createdAt: String
+    let resolvedAt: String?
+    let adminNote: String?
+}
+
 // MARK: - Enums (match backend Python enums exactly)
 
 enum TravelerType: String, Codable, CaseIterable, Identifiable {
     case employee
     case spouse
     case companion
+    case parent
 
     var id: String { rawValue }
 
@@ -42,6 +64,7 @@ enum TravelerType: String, Codable, CaseIterable, Identifiable {
         case .employee:  return "Employee"
         case .spouse:    return "Spouse"
         case .companion: return "Companion (Unaccompanied)"
+        case .parent:    return "Parent"
         }
     }
 }
@@ -99,6 +122,8 @@ struct Itinerary: Codable, Identifiable {
     let totalZedTier: ZedTier
     let requiresVerification: Bool
     let staleRules: [StaleRule]
+    /// 0.0–1.0 heuristic standby outlook (not live load-factor data).
+    let boardingProbability: Double
 
     /// Synthetic stable ID derived from the carrier path
     var id: String {
@@ -207,4 +232,58 @@ struct VerificationHistoryItem: Codable, Identifiable {
         f.formatOptions = [.withInternetDateTime]
         return f.date(from: createdAt)
     }
+}
+
+// MARK: - Agreement matrix & peer-reviewed documents
+
+struct MatrixRuleRow: Codable, Identifiable, Hashable {
+    var id: UUID { ruleId }
+    let ruleId: UUID
+    let carrierIata: String
+    let carrierName: String
+    let travelerType: TravelerType
+    let zedTier: ZedTier
+    let isUnaccompaniedAllowed: Bool
+    let confidenceScore: Int
+    let isVerified: Bool
+    let isStale: Bool
+}
+
+struct PendingDocumentSummary: Codable, Identifiable, Hashable {
+    let id: UUID
+    let carrierIata: String
+    let carrierName: String
+    let approvalCount: Int
+    let requiredApprovals: Int
+    let status: String
+    let createdAt: String
+    let uploaderEmail: String
+
+    var createdAtDate: Date? {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let d = f.date(from: createdAt) { return d }
+        f.formatOptions = [.withInternetDateTime]
+        return f.date(from: createdAt)
+    }
+}
+
+struct AgreementMatrixResponse: Codable {
+    let rules: [MatrixRuleRow]
+    let pendingDocuments: [PendingDocumentSummary]
+}
+
+struct AgreementDocumentUploadResponse: Codable {
+    let documentId: UUID
+    let status: String
+    let carrierIata: String
+}
+
+struct DocumentApproveResponse: Codable {
+    let documentId: UUID
+    let approvalCount: Int
+    let requiredApprovals: Int
+    let status: String
+    let documentNowOfficial: Bool
+    let userSearchCredits: Int
 }

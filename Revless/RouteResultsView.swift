@@ -11,26 +11,16 @@ struct RouteResultsView: View {
     @Bindable var viewModel: SearchViewModel
     @Environment(AuthViewModel.self) private var auth
     @Environment(RecentSearchStore.self) private var recentActivity
+    @Environment(ThemeManager.self) private var theme
 
-    // MARK: - Palette
-    //
-    // Deep navy → dark indigo-purple. The gradient bleeds through the
-    // ultraThinMaterial on each ItineraryCard, giving the frosted-glass
-    // effect real depth against a non-black background.
-
-    private let bg = LinearGradient(
-        colors: [Color(hex: "#0A0E17"), Color(hex: "#1A1A2E")],
-        startPoint: .top,
-        endPoint: .bottom
-    )
     private let subtleText  = Color.white.opacity(0.45)
-    private let accentColor = Color(red: 0.55, green: 0.60, blue: 0.98)
+    private var accentColor: Color { theme.accent }
 
     // MARK: - Body
 
     var body: some View {
         ZStack {
-            bg.ignoresSafeArea()
+            AtmosphericBackground()
 
             if viewModel.isLoading && viewModel.itineraries.isEmpty {
                 loadingView
@@ -44,12 +34,10 @@ struct RouteResultsView: View {
         }
         .navigationTitle("Results")
         .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(Color(hex: "#0A0E17"), for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .preferredColorScheme(.dark)
-        // Fetch on first appearance
         .task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
-        // VerificationModal sheet — driven by viewModel.selectedStaleRule
         .sheet(item: $viewModel.selectedStaleRule) { rule in
             VerificationModal(
                 rule: rule,
@@ -72,23 +60,20 @@ struct RouteResultsView: View {
     private var resultsList: some View {
         ScrollView {
             LazyVStack(spacing: 14) {
-                statsHeader
-                    .padding(.top, 4)
+                statsHeader.padding(.top, 4)
 
                 ForEach(viewModel.itineraries) { itinerary in
                     ItineraryCard(itinerary: itinerary) { rule in
-                        // When user taps the yellow badge, store the rule and
-                        // the traveler type so VerificationModal has both
                         viewModel.verifyingTravelerType = viewModel.travelerType
                         viewModel.selectedStaleRule = rule
                     }
                 }
 
                 if viewModel.isLoading {
-                    ProgressView()
-                        .tint(accentColor)
-                        .padding()
+                    ProgressView().tint(accentColor).padding()
                 }
+
+                decisionSupportDisclaimer
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)
@@ -108,8 +93,8 @@ struct RouteResultsView: View {
                     .foregroundStyle(subtleText)
             }
             Spacer()
-            // Refresh button
             Button {
+                HapticEngine.select()
                 Task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
             } label: {
                 Image(systemName: "arrow.clockwise")
@@ -123,57 +108,70 @@ struct RouteResultsView: View {
         .padding(.horizontal, 4)
     }
 
-    // MARK: - Loading state
+    // MARK: - Loading state (TakeoffLoader replaces ProgressView)
 
     private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.4)
-                .tint(accentColor)
-            Text("Searching eligible routes…")
-                .font(.subheadline)
-                .foregroundStyle(subtleText)
+        VStack(spacing: 32) {
+            TakeoffLoader(message: "Searching eligible routes…")
+            decisionSupportDisclaimer
+                .padding(.horizontal, 32)
         }
     }
 
-    // MARK: - Empty state
+    // MARK: - Empty state (aviation-themed illustration)
 
     private var emptyView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "airplane.circle")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(accentColor.opacity(0.6))
+        VStack(spacing: 0) {
+            Spacer()
 
-            VStack(spacing: 6) {
-                Text("No eligible routes")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+            // SVG-style scene drawn with SwiftUI shapes
+            BoredomPilotIllustration()
+                .frame(width: 220, height: 160)
+                .padding(.bottom, 28)
+
+            VStack(spacing: 8) {
+                Text("Nothing on the gate board.")
+                    .font(.system(size: 21, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("All itineraries were filtered by your\ncurrent agreement rules.")
-                    .font(.subheadline)
+
+                Text("All itineraries were filtered by your agreement rules — or no ZED agreements exist for this route pair.")
+                    .font(.system(size: 14))
                     .foregroundStyle(subtleText)
                     .multilineTextAlignment(.center)
             }
+            .padding(.horizontal, 40)
+
+            Spacer().frame(height: 28)
 
             Button {
+                HapticEngine.select()
                 Task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
             } label: {
-                Text("Try Again")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-                            )
-                    )
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Try a different hub")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 13)
+                .background {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(accentColor.opacity(0.35), lineWidth: 0.5)
+                        }
+                }
             }
             .buttonStyle(.plain)
+
+            Spacer().frame(height: 24)
+            decisionSupportDisclaimer.padding(.horizontal, 40)
+            Spacer()
         }
-        .padding(.horizontal, 40)
     }
 
     // MARK: - Error state
@@ -195,6 +193,7 @@ struct RouteResultsView: View {
             }
 
             Button {
+                HapticEngine.select()
                 Task { await viewModel.fetchRoutes(auth: auth, recentActivity: recentActivity) }
             } label: {
                 Text("Retry")
@@ -212,32 +211,134 @@ struct RouteResultsView: View {
                     )
             }
             .buttonStyle(.plain)
+
+            decisionSupportDisclaimer.padding(.top, 8)
         }
         .padding(.horizontal, 40)
     }
+
+    private var decisionSupportDisclaimer: some View {
+        Text(
+            "Revless uses crowdsourced agreement data and live flight feeds for planning only. "
+                + "Standby outlook percentages are heuristic estimates, not live load factors. "
+                + "Always confirm standby and ZED rules with your airline before you travel."
+        )
+        .font(.system(size: 11, weight: .regular))
+        .foregroundStyle(subtleText)
+        .multilineTextAlignment(.center)
+        .padding(.top, 4)
+    }
 }
 
-// MARK: - Color(hex:) convenience initialiser
+// MARK: - Bored-pilot-fishing illustration (pure SwiftUI)
 
-private extension Color {
-    /// Accepts "#RRGGBB", "RRGGBB", "#RGB", or "RGB" hex strings.
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&value)
-        let r, g, b: UInt64
-        switch hex.count {
-        case 3:
-            (r, g, b) = ((value >> 8) * 17, (value >> 4 & 0xF) * 17, (value & 0xF) * 17)
-        case 6:
-            (r, g, b) = (value >> 16, value >> 8 & 0xFF, value & 0xFF)
-        default:
-            (r, g, b) = (0, 0, 0)
+private struct BoredomPilotIllustration: View {
+
+    @State private var bobOffset: CGFloat = 0
+    @State private var lineLength: CGFloat = 55
+
+    private let accent = Color(red: 0.55, green: 0.60, blue: 0.98)
+
+    var body: some View {
+        ZStack {
+            // Cloud
+            cloudShape
+                .foregroundStyle(Color.white.opacity(0.06))
+                .offset(x: -40, y: -60)
+
+            // Wing (stylised aircraft silhouette lying flat)
+            airplaneWing
+                .offset(x: 20, y: -30)
+
+            // Pilot head
+            Circle()
+                .fill(Color(red: 0.98, green: 0.85, blue: 0.70))
+                .frame(width: 28, height: 28)
+                .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 1))
+                .offset(x: -14, y: -38)
+
+            // Cap brim
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color(red: 0.15, green: 0.18, blue: 0.38))
+                .frame(width: 32, height: 7)
+                .offset(x: -14, y: -50)
+
+            // Fishing rod arm
+            rodArm
+                .offset(x: 12, y: -20 + bobOffset * 0.3)
+
+            // Fishing line (vertical)
+            Rectangle()
+                .fill(accent.opacity(0.55))
+                .frame(width: 1, height: lineLength)
+                .offset(x: 62, y: lineLength / 2 - 22 + bobOffset * 0.5)
+
+            // Bobber
+            Circle()
+                .fill(Color.red.opacity(0.8))
+                .frame(width: 8, height: 8)
+                .offset(x: 62, y: lineLength - 16 + bobOffset)
+
+            // "No flights" text below illustration
+            VStack(spacing: 2) {
+                Text("🎣")
+                    .font(.system(size: 18))
+                Text("The gate is empty, captain.")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.40))
+            }
+            .offset(y: 80)
         }
-        self.init(.sRGB,
-                  red:   Double(r) / 255,
-                  green: Double(g) / 255,
-                  blue:  Double(b) / 255,
-                  opacity: 1)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                bobOffset = 6
+            }
+        }
+    }
+
+    private var cloudShape: some View {
+        ZStack {
+            Ellipse().frame(width: 80, height: 32)
+            Ellipse().frame(width: 55, height: 28).offset(x: -15, y: -10)
+            Ellipse().frame(width: 45, height: 24).offset(x: 18, y: -8)
+        }
+    }
+
+    private var airplaneWing: some View {
+        // Tiny stylised aircraft nose + delta wing
+        ZStack {
+            Ellipse()
+                .fill(Color.white.opacity(0.10))
+                .frame(width: 50, height: 14)
+                .offset(x: -4, y: 0)
+            Triangle()
+                .fill(Color.white.opacity(0.10))
+                .frame(width: 36, height: 22)
+                .rotationEffect(.degrees(-10))
+                .offset(x: 14, y: -2)
+        }
+    }
+
+    private var rodArm: some View {
+        ZStack {
+            // Rod body diagonal
+            Path { p in
+                p.move(to: CGPoint(x: 0, y: 0))
+                p.addLine(to: CGPoint(x: 50, y: -30))
+            }
+            .stroke(Color(red: 0.60, green: 0.42, blue: 0.22).opacity(0.85),
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round))
+        }
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: rect.midX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+            p.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+            p.closeSubpath()
+        }
     }
 }

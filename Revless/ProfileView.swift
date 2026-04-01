@@ -9,23 +9,14 @@ import SwiftUI
 struct ProfileView: View {
 
     @Environment(AuthViewModel.self) private var auth
+    @Environment(ThemeManager.self) private var theme
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @State private var showSignOutAlert = false
     @State private var verifications: [VerificationHistoryItem] = []
     @State private var verificationsLoaded = false
 
-    // MARK: - Palette
-
-    private let bg = LinearGradient(
-        colors: [Color(hex: "#0A0E17"), Color(hex: "#1A1A2E")],
-        startPoint: .top, endPoint: .bottom
-    )
-    private let ctaGradient = LinearGradient(
-        colors: [Color(red: 0.38, green: 0.44, blue: 0.98),
-                 Color(red: 0.55, green: 0.28, blue: 0.92)],
-        startPoint: .leading, endPoint: .trailing
-    )
-    private let accentColor = Color(red: 0.55, green: 0.60, blue: 0.98)
+    private var accentColor: Color { theme.accent }
+    private var ctaGradient: LinearGradient { theme.ctaGradient }
     private let subtleText  = Color.white.opacity(0.45)
 
     // MARK: - Derived user values
@@ -48,16 +39,23 @@ struct ProfileView: View {
         return "\(v) (\(b))"
     }
 
+    // MARK: - Derived
+
+    private var approvedVerificationCount: Int {
+        verifications.filter { $0.isAccurate }.count
+    }
+
     // MARK: - Body
 
     var body: some View {
         ZStack {
-            bg.ignoresSafeArea()
+            AtmosphericBackground()
 
             ScrollView {
                 VStack(spacing: 24) {
                     avatarSection
                     statsRow
+                    communityRankSection
                     accountCard
                     verificationImpactSection
                     appCard
@@ -92,6 +90,15 @@ struct ProfileView: View {
         } catch {
             verifications = []
         }
+    }
+
+    // MARK: - Community rank section
+
+    private var communityRankSection: some View {
+        CommunityRankSection(
+            verificationCount: approvedVerificationCount,
+            accentColor: accentColor
+        )
     }
 
     // MARK: - Avatar
@@ -405,32 +412,16 @@ struct ProfileView: View {
 
     private func glass(_ cornerRadius: CGFloat = 18) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color.white.opacity(0.08))
+            .fill(Color.white.opacity(0.05))
             .background(
                 .ultraThinMaterial,
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             )
+            .shadow(color: accentColor.opacity(0.14), radius: 12, y: 3)
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.5)
+                    .strokeBorder(accentColor.opacity(0.28), lineWidth: 0.5)
             }
-    }
-}
-
-// MARK: - Color(hex:) — file-private
-
-private extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&value)
-        let r, g, b: UInt64
-        switch hex.count {
-        case 3:  (r, g, b) = ((value >> 8) * 17, (value >> 4 & 0xF) * 17, (value & 0xF) * 17)
-        case 6:  (r, g, b) = (value >> 16, value >> 8 & 0xFF, value & 0xFF)
-        default: (r, g, b) = (0, 0, 0)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: 1)
     }
 }
 
@@ -439,4 +430,5 @@ private extension Color {
 #Preview {
     ProfileView()
         .environment(AuthViewModel())
+        .environment(ThemeManager())
 }

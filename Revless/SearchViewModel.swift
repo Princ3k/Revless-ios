@@ -151,4 +151,11 @@ final class SearchViewModel {
         await fetchRoutes(auth: auth, recentActivity: recentActivity)
         await auth.refreshCurrentUser()
     }
+
+    // MARK: - Agreement matrix (shared API; Agreement tab uses `AgreementMatrixViewModel`)
+
+    /// Fetches the tenant agreement matrix from `GET /agreements/matrix`.
+    func fetchMatrix() async throws -> AgreementMatrixResponse {
+        try await NetworkManager.shared.getAgreementMatrix()
+    }
 }

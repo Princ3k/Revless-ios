@@ -23,6 +23,8 @@ struct OnboardingView: View {
     var onFinish: () -> Void
 
     @State private var currentPage: Int = 0
+    /// Required on the final slide before "Start Exploring" (decision-support / not legal advice).
+    @State private var hasAcceptedDisclaimer: Bool = false
 
     private let bg = LinearGradient(
         colors: [Color(hex: "#0A0E17"), Color(hex: "#1A1A2E")],
@@ -99,6 +101,12 @@ struct OnboardingView: View {
     private var bottomControls: some View {
         VStack(spacing: 28) {
             if isLastSlide {
+                Text("Terms of Use")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                termsAcknowledgment
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 startButton
                     .transition(.opacity.combined(with: .scale(scale: 0.92)))
             } else {
@@ -107,6 +115,34 @@ struct OnboardingView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isLastSlide)
+    }
+
+    private var termsAcknowledgment: some View {
+        Button {
+            hasAcceptedDisclaimer.toggle()
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: hasAcceptedDisclaimer ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(
+                        hasAcceptedDisclaimer
+                            ? Color(red: 1.0, green: 0.55, blue: 0.12)
+                            : Color.white.opacity(0.35)
+                    )
+                Text(
+                    "Revless is decision support only—not legal or HR advice. "
+                        + "Agreement data is crowdsourced; I will confirm rules with my airline's official sources before I travel."
+                )
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(Color.white.opacity(0.78))
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Terms acknowledgment")
+        .accessibilityAddTraits(hasAcceptedDisclaimer ? [.isSelected] : [])
     }
 
     private var nextButton: some View {
@@ -138,6 +174,8 @@ struct OnboardingView: View {
                 .background { glassButtonBackground() }
         }
         .buttonStyle(.plain)
+        .disabled(!hasAcceptedDisclaimer)
+        .opacity(hasAcceptedDisclaimer ? 1 : 0.45)
     }
 
     private func glassButtonBackground() -> some View {

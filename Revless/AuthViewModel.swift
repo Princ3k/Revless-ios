@@ -20,6 +20,8 @@ final class AuthViewModel {
     var isLoading: Bool = false
     var errorMessage: String? = nil
     var currentUser: User? = nil
+    /// Set when GET /auth/me fails (e.g. offline) so the UI can offer retry instead of spinning forever.
+    var profileError: String? = nil
 
     // MARK: - Init
 
@@ -92,17 +94,27 @@ final class AuthViewModel {
         isAuthenticated = false
         currentUser = nil
         errorMessage = nil
+        profileError = nil
     }
 
     // MARK: - Private helpers
 
     @MainActor
     private func fetchCurrentUser() async {
+        profileError = nil
         do {
             currentUser = try await NetworkManager.shared.getMe()
         } catch {
-            // Non-fatal — dashboard degrades gracefully to default values.
+            currentUser = nil
+            profileError = "Could not load your profile. Check your connection and try again."
         }
+    }
+
+    /// After cold launch with a stored token — loads `currentUser` once.
+    @MainActor
+    func loadProfileIfNeeded() async {
+        guard isAuthenticated, currentUser == nil else { return }
+        await fetchCurrentUser()
     }
 
     /// Call this after a verification so the credit balance refreshes immediately.
